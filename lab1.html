@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Лабораторная 1: цветовые модели CMYK – RGB – HSV</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; padding: 0 12px; }
+  .panels { display: flex; gap: 16px; flex-wrap: wrap; }
+  .panel { border: 1px solid #aaa; border-radius: 6px; padding: 10px; flex: 1; min-width: 250px; }
+  .row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+  .row b { width: 18px; }
+  .row input[type=range] { flex: 1; }
+  .row input[type=number] { width: 60px; }
+  #preview { height: 80px; border: 1px solid #555; border-radius: 6px; margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<h1>Цветовые модели: CMYK – RGB – HSV</h1>
+
+<div>
+  Палитра: <input type="color" id="palette" value="#2f5bd8">
+  &nbsp; HEX: <b id="hex"></b>
+</div>
+<div id="preview"></div>
+
+<div class="panels">
+  <div class="panel" id="rgbPanel"><h3>RGB</h3></div>
+  <div class="panel" id="hsvPanel"><h3>HSV</h3></div>
+  <div class="panel" id="cmykPanel"><h3>CMYK</h3></div>
+</div>
+
+<script>
+
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;            // из диапазона 0..255 в доли 0..1
+  var max = Math.max(r, g, b);
+  var min = Math.min(r, g, b);
+  var d = max - min;                       // d = «цветность», разность max и min
+
+  var h = 0;                               // для серого так и останется 0
+  if (d != 0) {
+    if (max == r) h = 60 * (((g - b) / d) % 6);   // сектор красного
+    else if (max == g) h = 60 * ((b - r) / d + 2); // сектор зелёного
+    else h = 60 * ((r - g) / d + 4);               // сектор синего
+  }
+  if (h < 0) h += 360;                     // «% 6» может дать минус, приводим к 0..360
+
+  var s = (max == 0) ? 0 : d / max;        // у чёрного max = 0, деления на 0 нет
+  var v = max;
+  return [h, s * 100, v * 100];            // S и V возвращаем в процентах
+}
+
+
+function hsvToRgb(h, s, v) {
+  s /= 100; v /= 100;                      // проценты -> доли
+  var c = v * s;
+  var x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  var m = v - c;
+  var r, g, b;
+  if (h < 60)       { r = c; g = x; b = 0; }   // красный -> жёлтый
+  else if (h < 120) { r = x; g = c; b = 0; }   // жёлтый -> зелёный
+  else if (h < 180) { r = 0; g = c; b = x; }   // зелёный -> голубой
+  else if (h < 240) { r = 0; g = x; b = c; }   // голубой -> синий
+  else if (h < 300) { r = x; g = 0; b = c; }   // синий -> пурпурный
+  else              { r = c; g = 0; b = x; }   // пурпурный -> красный
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+}
+
+
+function rgbToCmyk(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  var k = 1 - Math.max(r, g, b);
+  if (k == 1) return [0, 0, 0, 100];       // чёрный
+  var c = (1 - r - k) / (1 - k);
+  var m = (1 - g - k) / (1 - k);
+  var y = (1 - b - k) / (1 - k);
+  return [c * 100, m * 100, y * 100, k * 100];
+}
+
+
+function cmykToRgb(c, m, y, k) {
+  c /= 100; m /= 100; y /= 100; k /= 100;  // проценты -> доли
+  return [255 * (1 - c) * (1 - k), 255 * (1 - m) * (1 - k), 255 * (1 - y) * (1 - k)];
+}
+
+
+/* 2. СОЗДАНИЕ ПОЛЕЙ ВВОДА */
+
+
+var rgbFields  = [["r", "R", 255], ["g", "G", 255], ["b", "B", 255]];
+var hsvFields  = [["h", "H", 360], ["s", "S", 100], ["v", "V", 100]];
+var cmykFields = [["c", "C", 100], ["m", "M", 100], ["y", "Y", 100], ["k", "K", 100]];
+
+
+function createFields(panelId, fields, onChange) {
+  var panel = document.getElementById(panelId);
+  for (var i = 0; i < fields.length; i++) {
+    var id = fields[i][0], label = fields[i][1], max = fields[i][2];
+    var row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = "<b>" + label + "</b>" +
+      '<input type="range" id="' + id + 'Range" min="0" max="' + max + '" value="0">' +
+      '<input type="number" id="' + id + 'Num" min="0" max="' + max + '" value="0">';
+    panel.appendChild(row);
+
+    bindPair(id, max, onChange);           // подключаем реакцию на изменения
+  }
+}
+
+
+function bindPair(id, max, onChange) {
+  var range = document.getElementById(id + "Range");
+  var num = document.getElementById(id + "Num");
+  range.oninput = function () { num.value = range.value; onChange(); };
+  num.oninput = function () {
+    var x = Number(num.value);
+    if (isNaN(x)) return;                  // ввели не число: ничего не делаем
+    if (x < 0) x = 0;
+    if (x > max) x = max;                  // не даём выйти за границы
+    range.value = x;
+    onChange();
+  };
+}
+
+
+/* 
+   3. ЧТЕНИЕ И ЗАПИСЬ ЗНАЧЕНИЙ, ВЫВОД ЦВЕТА
+*/
+
+
+function getValues(fields) {
+  var res = [];
+  for (var i = 0; i < fields.length; i++) {
+    res.push(Number(document.getElementById(fields[i][0] + "Num").value));
+  }
+  return res;
+}
+
+
+function setValues(fields, values) {
+  for (var i = 0; i < fields.length; i++) {
+    var id = fields[i][0];
+    var x = Math.round(values[i]);
+    document.getElementById(id + "Num").value = x;
+    document.getElementById(id + "Range").value = x;
+  }
+}
+
+
+function toHex(r, g, b) {
+  var parts = [r, g, b];
+  var s = "#";
+  for (var i = 0; i < 3; i++) {
+    var h = Math.round(parts[i]).toString(16);
+    if (h.length < 2) h = "0" + h;
+    s += h;
+  }
+  return s;
+}
+
+
+function showColor(r, g, b) {
+  var hex = toHex(r, g, b);
+  document.getElementById("preview").style.background = hex;
+  document.getElementById("hex").textContent = hex.toUpperCase();
+  document.getElementById("palette").value = hex;
+}
+
+
+/*
+   4. ПЕРЕСЧЁТ: МЕНЯЕМ ОДНУ МОДЕЛЬ, СЧИТАЕМ ДВЕ ДРУГИЕ
+ */
+
+function fromRgb() {
+  var rgb = getValues(rgbFields);
+  setValues(hsvFields, rgbToHsv(rgb[0], rgb[1], rgb[2]));
+  setValues(cmykFields, rgbToCmyk(rgb[0], rgb[1], rgb[2]));
+  showColor(rgb[0], rgb[1], rgb[2]);
+}
+
+
+function fromHsv() {
+  var hsv = getValues(hsvFields);
+  var rgb = hsvToRgb(hsv[0], hsv[1], hsv[2]);
+  setValues(rgbFields, rgb);
+  setValues(cmykFields, rgbToCmyk(rgb[0], rgb[1], rgb[2]));
+  showColor(rgb[0], rgb[1], rgb[2]);
+}
+
+function fromCmyk() {
+  var cmyk = getValues(cmykFields);
+  var rgb = cmykToRgb(cmyk[0], cmyk[1], cmyk[2], cmyk[3]);
+  setValues(rgbFields, rgb);
+  setValues(hsvFields, rgbToHsv(rgb[0], rgb[1], rgb[2]));
+  showColor(rgb[0], rgb[1], rgb[2]);
+}
+
+
+document.getElementById("palette").oninput = function () {
+  var t = this.value;
+  setValues(rgbFields, [parseInt(t.substr(1, 2), 16), parseInt(t.substr(3, 2), 16), parseInt(t.substr(5, 2), 16)]);
+  fromRgb();
+};
+
+
+/* 
+   5. ЗАПУСК
+ */
+
+createFields("rgbPanel", rgbFields, fromRgb);
+createFields("hsvPanel", hsvFields, fromHsv);
+createFields("cmykPanel", cmykFields, fromCmyk);
+
+setValues(rgbFields, [47, 91, 216]);
+fromRgb();
+</script>
+</body>
+</html>
