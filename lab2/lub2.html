@@ -1,0 +1,370 @@
+<title>Лабораторная 2 упрощённая</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root { --bg:#f3f5f4; --surface:#fff; --fg:#17211f; --muted:#5a6762; --line:#d3dad7; --accent:#1d5d8a; --accent-fg:#fff; --soft:#e8edeb; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0f1514; --surface:#172120; --fg:#e6eeeb; --muted:#9aa9a4; --line:#2c3a37; --accent:#6db5e8; --accent-fg:#0a1a25; --soft:#212c2a; color-scheme:dark; } }
+:root[data-theme="dark"] { --bg:#0f1514; --surface:#172120; --fg:#e6eeeb; --muted:#9aa9a4; --line:#2c3a37; --accent:#6db5e8; --accent-fg:#0a1a25; --soft:#212c2a; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { background:var(--bg); color:var(--fg); font:15px/1.55 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
+.wrap { max-width:1000px; margin:0 auto; padding-block:20px 48px; padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)); }
+h1 { font-size:26px; margin:0 0 4px; }
+h2 { font-size:19px; margin:34px 0 10px; }
+h3 { font-size:15px; margin:18px 0 4px; }
+.lead, .hint { color:var(--muted); margin:4px 0 14px; }
+.tabs { display:flex; gap:6px; margin:12px 0 16px; flex-wrap:wrap; }
+.tabs button, .bar button { font:inherit; color:var(--fg); background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:7px 14px; cursor:pointer; }
+.tabs button[aria-pressed="true"] { background:var(--accent); color:var(--accent-fg); border-color:var(--accent); }
+.bar { display:flex; flex-wrap:wrap; gap:12px 18px; align-items:flex-end; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:14px; }
+.bar label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--muted); min-width:0; }
+select, input[type=file] { font:inherit; color:var(--fg); background:var(--soft); border:1px solid var(--line); border-radius:6px; padding:6px 8px; max-width:100%; }
+input[type=range] { accent-color:var(--accent); width:190px; max-width:100%; }
+.grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:10px; min-width:0; }
+.card h3 { margin:0 0 6px; }
+.card canvas { width:100%; height:auto; display:block; border-radius:4px; background:var(--soft); }
+.card canvas.h { margin-top:6px; }
+.info { font:12px ui-monospace,Menlo,Consolas,monospace; color:var(--muted); margin-top:6px; }
+pre { background:var(--soft); padding:10px 12px; border-radius:6px; overflow-x:auto; font:13px/1.6 ui-monospace,Menlo,Consolas,monospace; margin:8px 0; }
+.doc { max-width:75ch; }
+.doc li { margin:3px 0; }
+[hidden] { display:none !important; }
+</style>
+
+<div class="wrap">
+  <h1>Лабораторная работа 2, вариант 4</h1>
+  <p class="lead">Гистограмма и контрастирование (строка 1) + сегментация: точки, линии, перепады яркости (столбец 4).</p>
+  <div class="tabs">
+    <button id="t1" aria-pressed="true">1. Контраст и гистограмма</button>
+    <button id="t2" aria-pressed="false">2. Точки, линии, перепады</button>
+  </div>
+
+  <!-- ===== Часть 1 ===== -->
+  <section id="s1">
+    <div class="bar">
+      <label>Тестовое изображение
+        <select id="img1">
+          <option value="low">Серое: малоконтрастное</option>
+          <option value="dark">Серое: тёмное</option>
+          <option value="outl">Серое: малоконтрастное с выбросами</option>
+          <option value="bg">Серое: большой однородный фон</option>
+          <option value="cdark">Цветное: тёмное</option>
+          <option value="chaze">Цветное: дымка</option>
+        </select>
+      </label>
+      <label>Своё изображение <input type="file" id="file1" accept="image/*"></label>
+    </div>
+    <p class="hint" id="note1"></p>
+    <div class="grid" id="grid1"></div>
+
+    <div class="doc">
+      <h2>Пояснения</h2>
+      <h3>Гистограмма</h3>
+      <p>Гистограмма показывает, сколько пикселей имеет каждую яркость от 0 до 255. У малоконтрастного изображения она узкая, у тёмного смещена влево. Под картинками выведены минимум, максимум и σ (стандартное отклонение яркости): чем больше σ, тем выше контраст.</p>
+      <h3>Линейное контрастирование</h3>
+      <pre>g = (f − min) · 255 / (max − min)</pre>
+      <p>Яркости растягиваются на весь диапазон 0…255, форма гистограммы не меняется. Недостаток: если есть хотя бы по одному пикселю со значениями 0 и 255, растяжения не будет («Малоконтрастное с выбросами»).</p>
+      <h3>Эквализация гистограммы</h3>
+      <pre>s(k) = round( (CDF(k) − CDF_min) · 255 / (N − CDF_min) )</pre>
+      <p>CDF(k) — число пикселей с яркостью не больше k, N — число пикселей. Гистограмма выравнивается, контраст растёт сильнее. Метод хорошо справляется с выбросами, но на изображении с большим однородным фоном делает объект тёмным («Серое: большой однородный фон»), так как почти весь выходной диапазон достаётся фону.</p>
+      <h3>Цветные изображения: RGB и HSV</h3>
+      <ul>
+        <li><b>RGB:</b> эквализация каждого из каналов R, G, B отдельно. Соотношение каналов меняется, поэтому цвета искажаются (на «Тёмном» небо и трава меняют оттенок).</li>
+        <li><b>HSV:</b> эквализуется только яркость V = max(R, G, B), оттенок H и насыщенность S не меняются. Цвета остаются естественными.</li>
+      </ul>
+      <h3>Выводы</h3>
+      <ul>
+        <li>Если изображение простое (нет выбросов и большого фона), оба метода подходят; эквализация даёт больший контраст.</li>
+        <li>С выбросами лучше эквализация, с однородным фоном лучше линейное контрастирование.</li>
+        <li>Для цветных изображений лучше выравнивать яркость в HSV, а не каналы RGB.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===== Часть 2 ===== -->
+  <section id="s2" hidden>
+    <div class="bar">
+      <label>Тестовое изображение
+        <select id="img2">
+          <option value="points">Точки на фоне</option>
+          <option value="lines">Линии разных направлений</option>
+          <option value="edges">Фигуры (перепады яркости)</option>
+        </select>
+      </label>
+      <label>Своё изображение <input type="file" id="file2" accept="image/*"></label>
+      <label>Что искать
+        <select id="method">
+          <option value="point">Точки</option>
+          <option value="line">Линии</option>
+          <option value="edge">Перепады (Собель)</option>
+        </select>
+      </label>
+      <label><span>Порог: <b id="tval">40</b> % от максимума</span>
+        <input type="range" id="thr" min="1" max="100" value="40">
+      </label>
+    </div>
+    <p class="hint" id="note2"></p>
+    <div class="grid" id="grid2"></div>
+
+    <div class="doc">
+      <h2>Пояснения</h2>
+      <p>Во всех трёх задачах изображение сворачивается с маской 3×3: R = w₁z₁ + w₂z₂ + … + w₉z₉ (z — яркости под маской). Затем пиксель считается найденным, если |R| не меньше порога. Порог задан в процентах от максимального отклика. Сумма коэффициентов масок равна нулю, поэтому на однородном фоне отклик нулевой.</p>
+      <h3>Точки</h3>
+      <pre>−1 −1 −1
+−1  8 −1
+−1 −1 −1</pre>
+      <p>Отклик большой там, где центральный пиксель сильно отличается от соседей.</p>
+      <h3>Линии</h3>
+      <pre>горизонт.     «/»          вертик.       «\»
+−1 −1 −1    −1 −1  2    −1  2 −1     2 −1 −1
+ 2  2  2    −1  2 −1    −1  2 −1    −1  2 −1
+−1 −1 −1     2 −1 −1    −1  2 −1    −1 −1  2</pre>
+      <p>Каждая маска откликается на линию своего направления шириной 1 пиксель. В программе берётся наибольший из четырёх откликов.</p>
+      <h3>Перепады яркости (оператор Собеля)</h3>
+      <pre>Gx: −1 0 1     Gy: −1 −2 −1      |G| = √(Gx² + Gy²)
+    −2 0 2          0  0  0
+    −1 0 1          1  2  1</pre>
+      <p>Gx и Gy — производные по горизонтали и вертикали; модуль градиента велик на границах объектов.</p>
+      <h3>Выбор порога и выводы</h3>
+      <ul>
+        <li>Слишком низкий порог даёт много ложных пикселей от шума, слишком высокий пропускает слабые объекты. Попробуйте менять ползунок.</li>
+        <li>Маска точек на границах фигур тоже даёт отклик, но слабее, чем на настоящих точках, поэтому порог около 40 % оставляет только точки.</li>
+        <li>Линии лучше искать на изображении с тонкими линиями; перепады Собеля находят границы всех фигур, в том числе слабоконтрастных.</li>
+        <li>На шумном изображении перепады дают «рваные» границы, помогло бы предварительное сглаживание (в этой версии не реализовано).</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+'use strict';
+const $ = s => document.querySelector(s);
+
+/* ---------------- общие функции ---------------- */
+function rand(seed) { return () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296; }
+function gauss(r) { return Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r()); }
+function toGray(d) {                       // RGBA -> яркость
+  const g = new Uint8ClampedArray(d.length / 4);
+  for (let i = 0; i < g.length; i++) g[i] = 0.299 * d[4*i] + 0.587 * d[4*i+1] + 0.114 * d[4*i+2];
+  return g;
+}
+function grayToRgba(g) {
+  const d = new Uint8ClampedArray(g.length * 4);
+  for (let i = 0; i < g.length; i++) { d[4*i] = d[4*i+1] = d[4*i+2] = g[i]; d[4*i+3] = 255; }
+  return d;
+}
+function show(canvas, w, h, rgba) {
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(rgba), w, h), 0, 0);
+}
+function makeCard(parent, title, withHist) {
+  const el = document.createElement('div'); el.className = 'card';
+  el.innerHTML = '<h3></h3><canvas class="i"></canvas>' + (withHist ? '<canvas class="h" width="256" height="80"></canvas>' : '') + '<div class="info"></div>';
+  el.querySelector('h3').textContent = title; parent.appendChild(el);
+  return { img: el.querySelector('.i'), hist: el.querySelector('.h'), info: el.querySelector('.info') };
+}
+function loadFile(file, cb) {               // загрузка своего изображения
+  const url = URL.createObjectURL(file), im = new Image();
+  im.onload = () => {
+    const k = Math.min(1, 400 / Math.max(im.width, im.height)), w = Math.round(im.width * k), h = Math.round(im.height * k);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h);
+    URL.revokeObjectURL(url); cb(w, h, x.getImageData(0, 0, w, h).data);
+  };
+  im.src = url;
+}
+
+/* ---------------- часть 1: гистограмма и контраст ---------------- */
+function histogram(g) { const h = new Array(256).fill(0); for (const v of g) h[v]++; return h; }
+function stats(g) {
+  let mn = 255, mx = 0, s = 0;
+  for (const v of g) { if (v < mn) mn = v; if (v > mx) mx = v; s += v; }
+  const m = s / g.length; let q = 0;
+  for (const v of g) q += (v - m) * (v - m);
+  return { mn, mx, mean: m, sigma: Math.sqrt(q / g.length) };
+}
+function linearLUT(g) {                     // линейное растяжение min..max -> 0..255
+  const { mn, mx } = stats(g), lut = new Uint8ClampedArray(256);
+  for (let i = 0; i < 256; i++) lut[i] = mx > mn ? (i - mn) * 255 / (mx - mn) : i;
+  return lut;
+}
+function equalLUT(g) {                      // эквализация по накопленной гистограмме
+  const h = histogram(g), lut = new Uint8ClampedArray(256), n = g.length;
+  let cdf = 0, cdfMin = 0;
+  for (let i = 0; i < 256; i++) { cdf += h[i]; if (!cdfMin && h[i]) cdfMin = cdf; lut[i] = n > cdfMin ? (cdf - cdfMin) * 255 / (n - cdfMin) : i; }
+  return lut;
+}
+function applyLUT(g, lut) { const o = new Uint8ClampedArray(g.length); for (let i = 0; i < g.length; i++) o[i] = lut[g[i]]; return o; }
+
+function rgb2hsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0;
+  if (d) { if (mx === r) h = ((g - b) / d + 6) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; }
+  return [h * 60, mx ? d / mx : 0, mx];
+}
+function hsv2rgb(h, s, v) {
+  const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+  return [f(5) * 255, f(3) * 255, f(1) * 255];
+}
+function equalRGB(d) {                      // способ 1: каждый канал отдельно
+  const out = new Uint8ClampedArray(d.length), luts = [];
+  for (let c = 0; c < 3; c++) { const ch = new Uint8ClampedArray(d.length / 4); for (let i = 0; i < ch.length; i++) ch[i] = d[4*i+c]; luts.push(equalLUT(ch)); }
+  for (let i = 0; i < d.length; i += 4) { out[i] = luts[0][d[i]]; out[i+1] = luts[1][d[i+1]]; out[i+2] = luts[2][d[i+2]]; out[i+3] = 255; }
+  return out;
+}
+function equalHSV(d) {                      // способ 2: только яркость V в HSV
+  const v8 = new Uint8ClampedArray(d.length / 4);
+  for (let i = 0; i < v8.length; i++) v8[i] = Math.max(d[4*i], d[4*i+1], d[4*i+2]);
+  const lut = equalLUT(v8), out = new Uint8ClampedArray(d.length);
+  for (let i = 0; i < d.length; i += 4) {
+    const [h, s, v] = rgb2hsv(d[i], d[i+1], d[i+2]);
+    const rgb = hsv2rgb(h, s, lut[Math.round(v * 255)] / 255);
+    out[i] = rgb[0]; out[i+1] = rgb[1]; out[i+2] = rgb[2]; out[i+3] = 255;
+  }
+  return out;
+}
+function drawHist(cv, g) {
+  const x = cv.getContext('2d'), h = histogram(g), mx = Math.max(...h);
+  x.fillStyle = getComputedStyle(document.body).getPropertyValue('--soft'); x.fillRect(0, 0, 256, 80);
+  x.fillStyle = getComputedStyle(document.body).getPropertyValue('--accent');
+  for (let i = 0; i < 256; i++) { const bh = h[i] / mx * 78; x.fillRect(i, 80 - bh, 1, bh); }
+}
+
+/* тестовые изображения: нарисованная сцена + искажения */
+function scene() {
+  const w = 320, h = 240, c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d');
+  const sky = x.createLinearGradient(0, 0, 0, 150); sky.addColorStop(0, '#2352b8'); sky.addColorStop(1, '#a8d4f0');
+  x.fillStyle = sky; x.fillRect(0, 0, w, h);
+  x.fillStyle = '#ffd23f'; x.beginPath(); x.arc(250, 45, 22, 0, 7); x.fill();
+  x.fillStyle = '#3f8a4f'; x.fillRect(0, 140, w, 50);
+  x.fillStyle = '#2d7fb0'; x.fillRect(0, 190, w, 50);
+  x.fillStyle = '#dccaa4'; x.fillRect(150, 100, 70, 55);
+  x.fillStyle = '#b5392b'; x.beginPath(); x.moveTo(140, 100); x.lineTo(185, 62); x.lineTo(230, 100); x.fill();
+  x.fillStyle = '#5a3820'; x.fillRect(178, 125, 14, 30);
+  x.fillStyle = '#5b3a1f'; x.fillRect(48, 120, 8, 30);
+  x.fillStyle = '#1f5a2b'; x.beginPath(); x.arc(52, 112, 24, 0, 7); x.fill();
+  return { w, h, data: x.getImageData(0, 0, w, h).data };
+}
+function testImage1(id) {
+  const s = scene(), r = rand(5), n = s.w * s.h, d = new Uint8ClampedArray(s.data);
+  const note = {
+    low: 'Яркости сжаты в узкий диапазон 100–150. Подходят оба метода.',
+    dark: 'Большинство пикселей около нуля.',
+    outl: 'Диапазон 100–150, но есть пиксели 0 и 255. Линейное растяжение не сработает, эквализация сработает.',
+    bg: 'Объект занимает малую часть кадра, остальное однотонный фон. Эквализация делает объект тёмным, линейное работает лучше.',
+    cdark: 'Тёмное цветное изображение. Сравните эквализацию по RGB и по V в HSV.',
+    chaze: 'Цветное изображение с «дымкой» (низкий контраст, бледные цвета).'
+  }[id];
+  if (id === 'cdark') { for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) d[4*i+c] = 0.4 * 255 * Math.pow(d[4*i+c] / 255, 1.7); return { w: s.w, h: s.h, data: d, color: true, note }; }
+  if (id === 'chaze') { for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) d[4*i+c] = 0.4 * d[4*i+c] + 0.6 * [190, 195, 205][c]; return { w: s.w, h: s.h, data: d, color: true, note }; }
+  const g = toGray(s.data), o = new Uint8ClampedArray(n);
+  for (let i = 0; i < n; i++) {
+    const v = g[i], x = i % s.w, y = (i / s.w) | 0;
+    if (id === 'low' || id === 'outl') o[i] = 100 + v * 50 / 255;
+    else if (id === 'dark') o[i] = 0.38 * 255 * Math.pow(v / 255, 2);
+    else o[i] = (x >= 100 && x < 220 && y >= 75 && y < 165) ? 40 + v * 0.4 : 200;   // bg
+  }
+  if (id === 'outl') { o[1000] = 0; o[30000] = 255; }
+  return { w: s.w, h: s.h, data: grayToRgba(o), color: false, note };
+}
+
+let img1 = null;
+function render1() {
+  const { w, h, data, color } = img1, grid = $('#grid1'); grid.innerHTML = '';
+  $('#note1').textContent = img1.note || '';
+  let items;
+  if (color) items = [['Оригинал', data], ['Эквализация R, G, B отдельно', equalRGB(data)], ['Эквализация V в HSV', equalHSV(data)]];
+  else { const g = toGray(data); items = [['Оригинал', data], ['Линейное контрастирование', grayToRgba(applyLUT(g, linearLUT(g)))], ['Эквализация гистограммы', grayToRgba(applyLUT(g, equalLUT(g)))]]; }
+  items.forEach(([title, rgba]) => {
+    const c = makeCard(grid, title, true), g = toGray(rgba), s = stats(g);
+    show(c.img, w, h, rgba); drawHist(c.hist, g);
+    c.info.textContent = 'min ' + s.mn + ' · max ' + s.mx + ' · σ ' + s.sigma.toFixed(1);
+  });
+}
+
+/* ---------------- часть 2: точки, линии, перепады ---------------- */
+function conv(g, w, h, k) {                  // свёртка 3x3, на краях повторяем крайние пиксели
+  const o = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let s = 0;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+      const yy = Math.min(h - 1, Math.max(0, y + j)), xx = Math.min(w - 1, Math.max(0, x + i));
+      s += k[(j + 1) * 3 + i + 1] * g[yy * w + xx];
+    }
+    o[y * w + x] = s;
+  }
+  return o;
+}
+const POINT = [-1,-1,-1, -1,8,-1, -1,-1,-1];
+const LINES = [[-1,-1,-1, 2,2,2, -1,-1,-1], [-1,-1,2, -1,2,-1, 2,-1,-1], [-1,2,-1, -1,2,-1, -1,2,-1], [2,-1,-1, -1,2,-1, -1,-1,2]];
+const SX = [-1,0,1, -2,0,2, -1,0,1], SY = [-1,-2,-1, 0,0,0, 1,2,1];
+function response(g, w, h, method) {         // |R| для выбранного метода
+  const n = w * h, r = new Float32Array(n);
+  if (method === 'point') { const a = conv(g, w, h, POINT); for (let i = 0; i < n; i++) r[i] = Math.abs(a[i]); }
+  else if (method === 'line') LINES.forEach(k => { const a = conv(g, w, h, k); for (let i = 0; i < n; i++) r[i] = Math.max(r[i], Math.abs(a[i])); });
+  else { const a = conv(g, w, h, SX), b = conv(g, w, h, SY); for (let i = 0; i < n; i++) r[i] = Math.hypot(a[i], b[i]); }
+  return r;
+}
+function testImage2(id) {
+  const w = 256, h = 256, g = new Float32Array(w * h), r = rand(7);
+  for (let i = 0; i < g.length; i++) g[i] = 90;
+  let note, method;
+  if (id === 'points') {
+    for (let k = 0; k < 14; k++) g[(10 + Math.floor(r() * 236)) * w + 10 + Math.floor(r() * 236)] = r() < .5 ? 240 : 5;
+    note = '14 одиночных пикселей на сером фоне с лёгким шумом. Используйте метод «Точки».'; method = 'point';
+  } else if (id === 'lines') {
+    for (let x = 20; x < 236; x++) g[40 * w + x] = 210;
+    for (let y = 70; y < 236; y++) g[y * w + 40] = 210;
+    for (let x = 110; x < 230; x++) g[(340 - x) * w + x] = 210;
+    for (let x = 100; x < 170; x++) g[(x - 30) * w + x] = 210;
+    note = 'Линии шириной 1 пиксель: горизонтальная, вертикальная и две диагональные. Используйте метод «Линии».'; method = 'line';
+  } else {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (x > 24 && x < 112 && y > 28 && y < 116) g[y * w + x] = 200;
+      else if ((x - 184) ** 2 + (y - 76) ** 2 < 46 * 46) g[y * w + x] = 140;
+      else if (y > 140 && y < 236 && Math.abs(x - 84) < (y - 140) / 2) g[y * w + x] = 235;
+    }
+    note = 'Прямоугольник, круг и треугольник на тёмном фоне. Используйте метод «Перепады».'; method = 'edge';
+  }
+  for (let i = 0; i < g.length; i++) g[i] += gauss(r) * 3;
+  return { w, h, gray: Uint8ClampedArray.from(g), note, method };
+}
+let img2 = null;
+function render2() {
+  const { w, h, gray } = img2, method = $('#method').value, T = +$('#thr').value;
+  $('#tval').textContent = T; $('#note2').textContent = img2.note || '';
+  const resp = response(gray, w, h, method);
+  let mx = 0; for (const v of resp) if (v > mx) mx = v;
+  const mask = new Uint8ClampedArray(w * h), respImg = new Uint8ClampedArray(w * h); let found = 0;
+  for (let i = 0; i < mask.length; i++) {
+    respImg[i] = mx ? resp[i] / mx * 255 : 0;
+    if (mx && resp[i] >= T / 100 * mx) { mask[i] = 255; found++; }
+  }
+  const grid = $('#grid2'); grid.innerHTML = '';
+  [['Оригинал', gray, ''], ['Отклик |R|', respImg, ''], ['Результат (порог)', mask, 'найдено пикселей: ' + found]].forEach(([t, a, info]) => {
+    const c = makeCard(grid, t, false); show(c.img, w, h, grayToRgba(a)); c.info.textContent = info;
+  });
+}
+
+/* ---------------- события ---------------- */
+function tab(n) {
+  $('#s1').hidden = n !== 1; $('#s2').hidden = n !== 2;
+  $('#t1').setAttribute('aria-pressed', String(n === 1)); $('#t2').setAttribute('aria-pressed', String(n === 2));
+  if (n === 1) render1(); else render2();
+}
+$('#t1').onclick = () => tab(1); $('#t2').onclick = () => tab(2);
+$('#img1').onchange = e => { img1 = testImage1(e.target.value); render1(); };
+$('#file1').onchange = e => { const f = e.target.files[0]; if (f) loadFile(f, (w, h, d) => {
+  let c = false; for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - d[i+1]) > 8 || Math.abs(d[i+1] - d[i+2]) > 8) { c = true; break; }
+  img1 = { w, h, data: new Uint8ClampedArray(d), color: c, note: 'Своё изображение (' + (c ? 'цветное' : 'серое') + ').' }; render1(); }); };
+$('#img2').onchange = e => { img2 = testImage2(e.target.value); $('#method').value = img2.method; $('#thr').value = img2.method === 'point' ? 40 : img2.method === 'line' ? 55 : 20; render2(); };
+$('#file2').onchange = e => { const f = e.target.files[0]; if (f) loadFile(f, (w, h, d) => {
+  img2 = { w, h, gray: toGray(d), note: 'Своё изображение.' }; render2(); }); };
+$('#method').onchange = () => { const m = $('#method').value; $('#thr').value = m === 'point' ? 40 : m === 'line' ? 55 : 20; render2(); };
+$('#thr').oninput = render2;
+
+img1 = testImage1('low'); img2 = testImage2('points');
+render1();
+})();
+</script>
